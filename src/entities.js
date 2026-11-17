@@ -83,6 +83,29 @@ export function makeCarMesh(color, isPolice = false, type = 'sedan') {
     b.position.set(0, 0.36, z);
     g.add(b);
   }
+  // grille + chrome strip (front)
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.22, 0.08), trimMat);
+  grille.position.set(0, 0.62, halfLen + 0.06);
+  g.add(grille);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.03, 0.09),
+    new THREE.MeshStandardMaterial({ color: 0x9aa2ab, roughness: 0.3, metalness: 0.8 }));
+  strip.position.set(0, 0.62, halfLen + 0.07);
+  g.add(strip);
+  // license plates (front + rear, on the bumper face)
+  const plateMat = new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.5, metalness: 0.2 });
+  for (const z of [halfLen + 0.18, -halfLen - 0.18]) {
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.04), plateMat);
+    plate.position.set(0, 0.32, z);
+    g.add(plate);
+  }
+  // wheel arches (body-color half-torus over each wheel)
+  const archGeo = new THREE.TorusGeometry(wheelR + 0.1, 0.1, 6, 12, Math.PI);
+  for (const [x, z] of [[-1.0, wheelZ], [1.0, wheelZ], [-1.0, -wheelZ], [1.0, -wheelZ]]) {
+    const arch = new THREE.Mesh(archGeo, bodyMat);
+    arch.rotation.y = Math.PI / 2;
+    arch.position.set(x, wheelR, z);
+    g.add(arch);
+  }
   // headlights / taillights (emissive)
   const hl = new THREE.MeshBasicMaterial({ color: 0xfff2c0 });
   for (const x of [-0.7, 0.7]) {
@@ -137,10 +160,14 @@ export function makeCarMesh(color, isPolice = false, type = 'sedan') {
 }
 
 const HAIR_COLORS = [0x1c1410, 0x3a2a18, 0x111111, 0x6a4a2a, 0x8a8a8a];
+const SKIN_TONES = [0xd9a986, 0xc98e6a, 0x8a5a3a, 0xe8b898, 0x6a4530];
+const HAT_COLORS = [0x2a2a2e, 0x5c3a1e, 0x3a3a3a, 0x6e2a2a];
 
 // capsule person: capsule torso, sphere head + hair, capsule arms/legs — no cube people
-function makePersonMesh({ shirt, pants = 0x2c3240, skin = 0xd9a986, hair = null }) {
+// scale = [sx, sy, sz] body proportions; hat = wide-brim hat (some peds)
+function makePersonMesh({ shirt, pants = 0x2c3240, skin = 0xd9a986, hair = null, scale = null, hat = false }) {
   const g = new THREE.Group();
+  if (scale) g.scale.set(scale[0], scale[1], scale[2]);
   const shirtMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.85, metalness: 0 });
   const pantsMat = new THREE.MeshStandardMaterial({ color: pants, roughness: 0.9, metalness: 0 });
   const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.7, metalness: 0 });
@@ -159,6 +186,20 @@ function makePersonMesh({ shirt, pants = 0x2c3240, skin = 0xd9a986, hair = null 
   hairMesh.scale.set(1, 0.62, 1);
   hairMesh.position.y = 1.92;
   g.add(hairMesh);
+  if (hat) {
+    // wide-brim hat (replaces the hair cap visually)
+    const hatMat = new THREE.MeshStandardMaterial({
+      color: HAT_COLORS[Math.floor(Math.random() * HAT_COLORS.length)],
+      roughness: 0.9, metalness: 0,
+    });
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 12), hatMat);
+    brim.position.y = 1.98;
+    g.add(brim);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), hatMat);
+    dome.scale.set(1, 0.75, 1);
+    dome.position.y = 2.03;
+    g.add(dome);
+  }
   // arms (slightly out, hang naturally)
   const armGeo = new THREE.CapsuleGeometry(0.09, 0.45, 3, 6);
   for (const s of [-1, 1]) {
@@ -178,7 +219,13 @@ function makePersonMesh({ shirt, pants = 0x2c3240, skin = 0xd9a986, hair = null 
 }
 
 export function makePedMesh(shirtColor) {
-  return makePersonMesh({ shirt: shirtColor });
+  // varied silhouettes: height 0.88–1.15, width 0.85–1.25, skin tones, 30% hats
+  return makePersonMesh({
+    shirt: shirtColor,
+    skin: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)],
+    scale: [0.85 + Math.random() * 0.4, 0.88 + Math.random() * 0.27, 0.85 + Math.random() * 0.4],
+    hat: Math.random() < 0.3,
+  });
 }
 
 export function makePlayerMesh() {

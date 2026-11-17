@@ -93,14 +93,14 @@ const skyCtx = skyCanvas.getContext('2d');
 const skyTex = new THREE.CanvasTexture(skyCanvas);
 skyTex.colorSpace = THREE.SRGBColorSpace;
 scene.background = skyTex;
-scene.fog = new THREE.Fog(0xdfeaf2, 260, 900);
+scene.fog = new THREE.Fog(0xdfeaf2, 220, 780);
 G.scene = scene;
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1200);
 G.camera = camera;
 
 const hemi = new THREE.HemisphereLight(0xbfd8ee, 0x4a4f55, 1.0);
 scene.add(hemi);
-const amb = new THREE.AmbientLight(0x4a5560, 1.0);
+const amb = new THREE.AmbientLight(0x5a5348, 1.0);
 scene.add(amb);
 const sun = new THREE.DirectionalLight(0xffe0b0, 1.6);
 sun.castShadow = true;

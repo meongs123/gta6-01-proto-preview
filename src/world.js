@@ -13,29 +13,48 @@ export const CITY = {
   seed: 1337,
 };
 
-// varied facade palette — brick, sand, slate, sage, terracotta, cream...
+// muted, dingy facade palette — desaturated browns/grays/slates (GTA III vibe, own colors)
 const BUILDING_COLORS = [
-  0x5a6b7d, 0x6d5f52, 0x4f5d4a, 0x74604e, 0x5d5a6e, 0x7a6a5f,
-  0x8a5a44, 0xb09a7a, 0x7a8a6a, 0xa86a4a, 0xcbb89a, 0x4a4a52,
-  0x9a6a6a, 0x6a6a4a, 0x6a7a8a, 0x5f6e5a,
+  0x6a6f75, 0x75685a, 0x5a6558, 0x7a6a58, 0x656270, 0x7d7268,
+  0x8a5f4a, 0xa8946e, 0x7d8a6e, 0x9a6a4a, 0xbfae8e, 0x55555e,
+  0x8a6a62, 0x6e6e52, 0x6e7d84, 0x67705f,
 ];
 const ROOF_COLORS = [0x3a3f45, 0x2f3338, 0x453a30, 0x55504a];
 // storefront awning + sign palette (bright, varied)
 const SHOP_COLORS = [0x2e8b8b, 0xd95d4e, 0xe0a83c, 0x4a9e5c, 0x7a5fb0, 0x3a6ea8, 0xc96a8a, 0x2f7d5b];
-const SIGN_COLORS = [0xffd23e, 0xff6b4a, 0x2ee6a8, 0x6ab8ff, 0xff9de2, 0xf5f0e6];
 
 function windowTexture(rng, variant) {
   const c = document.createElement('canvas');
   c.width = 128; c.height = 256;
   const g = c.getContext('2d');
-  // light concrete base — the material color tints it; windows drawn on top
-  g.fillStyle = '#c9ccd0'; g.fillRect(0, 0, 128, 256);
-  // subtle vertical grime variation
-  for (let i = 0; i < 40; i++) {
-    g.fillStyle = 'rgba(0,0,0,' + rng.range(0.02, 0.07) + ')';
-    g.fillRect(rng.range(0, 120), 0, rng.range(2, 8), 256);
+  // dingy concrete base — the material color tints it; grime drawn on top
+  g.fillStyle = '#b4b7ba'; g.fillRect(0, 0, 128, 256);
+  // brick courses on some variants (faint horizontal lines)
+  if (variant === 0 || variant === 1) {
+    g.fillStyle = 'rgba(0,0,0,0.09)';
+    for (let y = 0; y < 256; y += 12) g.fillRect(0, y, 128, 1);
+    g.fillStyle = 'rgba(0,0,0,0.05)';
+    for (let y = 6; y < 256; y += 12) {
+      for (let x = (y % 24 === 6 ? 0 : 32); x < 128; x += 64) g.fillRect(x, y, 1, 6);
+    }
   }
-  // grid varies per variant: columns, rows, lit ratio, window size
+  // noise speckle + stains
+  for (let i = 0; i < 500; i++) {
+    g.fillStyle = 'rgba(0,0,0,' + rng.range(0.03, 0.12) + ')';
+    g.fillRect(rng.range(0, 127), rng.range(0, 255), rng.range(1, 2), rng.range(1, 2));
+  }
+  for (let i = 0; i < 5; i++) {
+    g.fillStyle = 'rgba(40,30,20,' + rng.range(0.08, 0.18) + ')';
+    g.beginPath();
+    g.ellipse(rng.range(10, 118), rng.range(10, 246), rng.range(6, 18), rng.range(10, 30), 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // vertical grime streaks under windows
+  for (let i = 0; i < 14; i++) {
+    g.fillStyle = 'rgba(0,0,0,' + rng.range(0.04, 0.1) + ')';
+    g.fillRect(rng.range(0, 120), rng.range(0, 100), rng.range(2, 5), rng.range(40, 150));
+  }
+  // framed windows with sills; some have a facade AC unit under the sill
   const conf = [
     { cols: 6, rows: 10, lit: 0.28 },
     { cols: 8, rows: 10, lit: 0.28 },
@@ -43,11 +62,39 @@ function windowTexture(rng, variant) {
     { cols: 4, rows: 7, lit: 0.18 },   // big windows, few lit
     { cols: 8, rows: 12, lit: 0.15 },  // small windows, mostly dark
   ][variant % 5];
+  const cw = 116 / conf.cols, ch = 240 / conf.rows;
   for (let y = 0; y < conf.rows; y++) {
     for (let x = 0; x < conf.cols; x++) {
+      const wx = 6 + x * cw, wy = 8 + y * ch;
+      // dark frame
+      g.fillStyle = '#191c1f';
+      g.fillRect(wx, wy, cw - 6, ch - 7);
+      // pane
       const lit = rng.chance(conf.lit);
-      g.fillStyle = lit ? '#ffd98a' : (rng.chance(0.5) ? '#33404d' : '#252d38');
-      g.fillRect(6 + x * (116 / conf.cols), 8 + y * (240 / conf.rows), 116 / conf.cols - 6, 240 / conf.rows - 7);
+      g.fillStyle = lit ? '#ffd98a' : (rng.chance(0.5) ? '#20262e' : '#2f3a45');
+      g.fillRect(wx + 2, wy + 2, cw - 10, ch - 11);
+      // mullion cross
+      g.fillStyle = 'rgba(0,0,0,0.45)';
+      g.fillRect(wx + cw / 2 - 1, wy + 2, 1.5, ch - 11);
+      // sill
+      g.fillStyle = '#8f9296';
+      g.fillRect(wx - 1, wy + ch - 6, cw - 4, 2);
+      // facade AC unit under some windows
+      if (rng.chance(0.22)) {
+        g.fillStyle = '#6a7076';
+        g.fillRect(wx + 2, wy + ch - 3, cw - 12, 5);
+        g.fillStyle = '#3a3f45';
+        g.fillRect(wx + 3, wy + ch - 2, cw - 14, 1);
+      }
+    }
+  }
+  // fire escape hint on variant 4 (right edge: platforms + rails)
+  if (variant === 4) {
+    g.fillStyle = '#23262a';
+    for (const py of [60, 130, 200]) {
+      g.fillRect(108, py, 20, 4);
+      g.fillRect(110, py - 14, 2, 14);
+      g.fillRect(124, py - 14, 2, 14);
     }
   }
   const t = new THREE.CanvasTexture(c);
@@ -65,21 +112,57 @@ function groundTexture() {
   const Z = (wz) => S / 2 + px(wz);
   // base: block ground
   g.fillStyle = '#363d45'; g.fillRect(0, 0, S, S);
-  // sidewalk pads around each block
-  g.fillStyle = '#3a4149';
+  // sidewalk pads around each block — lighter concrete, joints, curb edge
+  const grng = new RNG(777);
   const roads = CITY.roads, P = CITY.pitch;
   for (let i = 0; i < roads.length - 1; i++) {
     for (let j = 0; j < roads.length - 1; j++) {
       const x0 = roads[i] + 6, x1 = roads[i + 1] - 6;
       const z0 = roads[j] + 6, z1 = roads[j + 1] - 6;
+      g.fillStyle = '#5a5f66';
       g.fillRect(X(x0), Z(z0), px(x1 - x0), px(z1 - z0));
+      // expansion joints
+      g.fillStyle = 'rgba(0,0,0,0.18)';
+      for (let k = 1; k < 4; k++) {
+        g.fillRect(X(x0 + (x1 - x0) * k / 4), Z(z0), 1, px(z1 - z0));
+        g.fillRect(X(x0), Z(z0 + (z1 - z0) * k / 4), px(x1 - x0), 1);
+      }
+      // curb: dark edge line where sidewalk meets the road
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.fillRect(X(x0), Z(z0), px(x1 - x0), 2);
+      g.fillRect(X(x0), Z(z1) - 2, px(x1 - x0), 2);
+      g.fillRect(X(x0), Z(z0), 2, px(z1 - z0));
+      g.fillRect(X(x1) - 2, Z(z0), 2, px(z1 - z0));
     }
+  }
+  // speckle on sidewalks
+  for (let i = 0; i < 2500; i++) {
+    g.fillStyle = 'rgba(0,0,0,' + grng.range(0.02, 0.08) + ')';
+    g.fillRect(grng.range(0, S), grng.range(0, S), 1, 1);
   }
   // roads
   g.fillStyle = '#2c3138';
   for (const r of roads) {
     g.fillRect(X(r - 6), 0, px(12), S);
     g.fillRect(0, Z(r - 6), S, px(12));
+  }
+  // asphalt patches + manholes
+  for (let i = 0; i < 26; i++) {
+    const r = roads[Math.floor(grng.range(0, roads.length))];
+    const d = grng.range(-200, 200);
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.beginPath();
+    g.ellipse(X(r + grng.range(-4, 4)), Z(d), grng.range(6, 16), grng.range(4, 9), 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = 0; i < 14; i++) {
+    const r = roads[Math.floor(grng.range(0, roads.length))];
+    const d = grng.range(-200, 200);
+    const mx = X(r + (grng.chance(0.5) ? 3 : -3)), mz = Z(d);
+    g.fillStyle = '#1e2126';
+    g.beginPath(); g.arc(mx, mz, 5, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#3a3f45'; g.lineWidth = 1;
+    g.beginPath(); g.arc(mx, mz, 5, 0, Math.PI * 2); g.stroke();
   }
   // center dashes
   g.fillStyle = '#c8a84a';
@@ -102,6 +185,31 @@ function groundTexture() {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  return t;
+}
+
+// neon shop signs — ALL names invented for Solmar Bay (original fiction only)
+const SIGN_DEFS = [
+  ['ROOKS', '#8a0f1e', '#ffd23e'],
+  ['MARAS', '#14532a', '#7dffb0'],
+  ['NOODLE', '#5c1a1a', '#ffb14d'],
+  ['TACO', '#1a2a6e', '#7db8ff'],
+  ['SOLMAR', '#4a1a5c', '#ff9de2'],
+  ['BAY 24', '#0e3a4a', '#8ae6ff'],
+];
+function signTexture(text, bg, fg) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 64);
+  g.strokeStyle = fg; g.lineWidth = 4; g.shadowColor = fg; g.shadowBlur = 10;
+  g.strokeRect(4, 4, 248, 56);
+  g.font = 'bold 40px Arial, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = fg; g.shadowBlur = 14;
+  g.fillText(text, 128, 34);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
@@ -131,6 +239,7 @@ export function createCity(scene) {
     windowTexture(rng, 0), windowTexture(rng, 1), windowTexture(rng, 2),
     windowTexture(rng, 3), windowTexture(rng, 4),
   ];
+  const signTexs = SIGN_DEFS.map(([t, bg, fg]) => signTexture(t, bg, fg));
   const buildings = [];
   const buildingMats = [];   // for night emissive windows
   const signMats = [];       // storefront signs glow at night
@@ -192,7 +301,7 @@ export function createCity(scene) {
     const f = faces[0];
     const shopW = Math.min(f.along * 0.55, 14);
     const awnColor = rng.pick(SHOP_COLORS);
-    const signColor = rng.pick(SIGN_COLORS);
+    const signTex = rng.pick(signTexs);
     const shop = new THREE.Group();
     shop.position.set(f.px, 0, f.pz);
     shop.rotation.y = f.rot;
@@ -210,10 +319,10 @@ export function createCity(scene) {
     awn.position.set(0, 3.7, 0.9);
     awn.rotation.x = 0.45;
     shop.add(awn);
-    // signboard above the awning (glows at night)
+    // neon signboard above the awning (glows at night via emissiveMap)
     const signMat = new THREE.MeshStandardMaterial({
-      color: signColor, roughness: 0.5, metalness: 0.1,
-      emissive: signColor, emissiveIntensity: 0,
+      map: signTex, roughness: 0.4, metalness: 0.1,
+      emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0,
     });
     const sign = new THREE.Mesh(boxGeo, signMat);
     sign.scale.set(shopW * 0.8, 0.9, 0.25);
@@ -356,6 +465,21 @@ export function createCity(scene) {
     noz.rotation.z = Math.PI / 2;
     noz.position.set(x, 0.55, z);
     group.add(noz);
+  }
+
+  // trash cans on sidewalks
+  const binGeo = new THREE.CylinderGeometry(0.32, 0.28, 0.85, 8);
+  const binLidGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.1, 8);
+  const binMat = new THREE.MeshStandardMaterial({ color: 0x2e4a35, roughness: 0.8, metalness: 0.3 });
+  for (let n = 0; n < 10; n++) {
+    const rx = roads[rng.int(0, roads.length - 1)], rz = roads[rng.int(0, roads.length - 1)];
+    const bx = rx + (rng.chance(0.5) ? 7.2 : -7.2), bz = rz + rng.range(-40, 40);
+    const bin = new THREE.Mesh(binGeo, binMat);
+    bin.position.set(bx, 0.42, bz);
+    group.add(bin);
+    const lid = new THREE.Mesh(binLidGeo, binMat);
+    lid.position.set(bx, 0.9, bz);
+    group.add(lid);
   }
 
   // trees on sidewalks — cylinder trunk + two foliage spheres
