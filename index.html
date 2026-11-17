@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLMAR BAY — an open-world crime story</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --ink: #f2ede2; --muted: #9aa3ab; --accent: #ffd23e; --danger: #ff5a4e;
+    --green: #58c96b; --panel: rgba(12, 16, 20, 0.72); --line: rgba(255,255,255,0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1220; color: var(--ink);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .hidden { display: none !important; }
+
+  /* top-left status */
+  #status { position: absolute; top: 14px; left: 14px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 210px;
+    backdrop-filter: blur(4px); }
+  #health-row { display: flex; align-items: center; gap: 8px; }
+  #health-bar { flex: 1; height: 10px; background: rgba(255,255,255,0.15); border-radius: 5px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: var(--green); transition: width .2s; }
+  #health-num { font: 700 13px ui-monospace, monospace; width: 30px; text-align: right; }
+  #money { font: 700 20px ui-monospace, monospace; color: var(--accent); margin-top: 4px; }
+  #money-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+
+  /* wanted stars */
+  #stars { position: absolute; top: 14px; right: 16px; font-size: 30px; letter-spacing: 4px;
+    color: #5a636e; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+
+  /* mission */
+  #mission { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    text-align: center; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 18px; max-width: 46vw; backdrop-filter: blur(4px); }
+  #mission-title { font-size: 11px; letter-spacing: 2.5px; color: var(--accent); font-weight: 700; }
+  #mission-obj { font-size: 15px; margin-top: 2px; }
+  #mission-dist { font: 700 13px ui-monospace, monospace; color: var(--muted); margin-top: 2px; }
+
+  /* minimap */
+  #minimap-wrap { position: absolute; left: 14px; bottom: 14px; border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
+  #minimap { display: block; width: 190px; height: 190px; }
+  #minimap-label { position: absolute; left: 14px; bottom: 210px; font-size: 10px;
+    letter-spacing: 2px; color: var(--muted); text-shadow: 0 1px 4px #000; }
+
+  /* speed */
+  #speed-box { position: absolute; right: 16px; bottom: 16px; text-align: right;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+  #speed { font: 700 34px ui-monospace, monospace; line-height: 1; }
+  #speed-unit { font-size: 11px; letter-spacing: 2px; color: var(--muted); }
+
+  /* prompt + toast */
+  #prompt { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%);
+    font-size: 17px; font-weight: 600; background: var(--panel); border: 1px solid var(--line);
+    padding: 8px 16px; border-radius: 8px; }
+  #toast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+    font-size: 18px; font-weight: 700; background: rgba(12,16,20,0.85); border: 1px solid var(--accent);
+    color: var(--accent); padding: 10px 20px; border-radius: 8px; opacity: 0; transition: opacity .25s;
+    text-align: center; max-width: 70vw; }
+  #toast.show { opacity: 1; }
+
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 6; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55) 100%); }
+
+  /* menus */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, rgba(6,10,16,0.55), rgba(6,10,16,0.88)); }
+  .card { max-width: 560px; width: 92vw; background: rgba(14,18,24,0.92); border: 1px solid var(--line);
+    border-radius: 14px; padding: 30px 34px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .card h1 { margin: 0; font-size: 46px; letter-spacing: 6px; color: var(--accent);
+    text-shadow: 0 0 24px rgba(255,210,62,0.35); }
+  .card h2 { margin: 4px 0 0; font-size: 13px; letter-spacing: 4px; color: var(--muted); font-weight: 600; }
+  .card p { color: #cfd6dc; line-height: 1.55; font-size: 15px; }
+  .card .controls { text-align: left; font-size: 13.5px; color: var(--muted); line-height: 1.9;
+    background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px 16px; margin: 14px 0; }
+  .card .controls b { color: var(--ink); font-family: ui-monospace, monospace; }
+  button { pointer-events: auto; cursor: pointer; border: none; border-radius: 8px;
+    background: var(--accent); color: #141414; font-size: 16px; font-weight: 800;
+    padding: 12px 26px; margin: 6px 4px 0; letter-spacing: 1px; }
+  button:hover { filter: brightness(1.1); }
+  button.secondary { background: rgba(255,255,255,0.14); color: var(--ink); }
+  #save-note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  #menu-sub { font-size: 12px; letter-spacing: 3px; color: var(--muted); margin-top: 14px; }
+  #err { position: fixed; left: 0; bottom: 0; z-index: 99; color: #f66; font: 11px monospace;
+    background: rgba(0,0,0,0.6); max-width: 100vw; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="status">
+    <div id="health-row">
+      <span style="font-size:11px;letter-spacing:1px;color:var(--muted)">HP</span>
+      <div id="health-bar"><div id="health-fill"></div></div>
+      <span id="health-num">100</span>
+    </div>
+    <div id="money">$0</div>
+    <div id="money-label">CASH</div>
+  </div>
+  <div id="stars">☆☆☆☆☆</div>
+  <div id="mission">
+    <div id="mission-title">SOLMAR BAY</div>
+    <div id="mission-obj">Welcome to the city.</div>
+    <div id="mission-dist"></div>
+  </div>
+  <div id="minimap-label">SOLMAR BAY</div>
+  <div id="minimap-wrap"><canvas id="minimap" width="190" height="190"></canvas></div>
+  <div id="speed-box" style="display:none"><span id="speed">0</span><div id="speed-unit">KM/H</div></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+</div>
+<div id="vignette"></div>
+
+<div id="menu" class="screen">
+  <div class="card">
+    <h1>SOLMAR BAY</h1>
+    <h2>AN OPEN-WORLD CRIME STORY</h2>
+    <p>You are <b>Rook</b> — new in town, broke, and already on Mara's radar.
+    Six jobs stand between you and owning this city. Steal cars, lose the cops,
+    run the packages, and don't get caught.</p>
+    <div class="controls">
+      <b>W A S D</b> — walk / drive &nbsp;·&nbsp; <b>Mouse drag</b> — look around<br>
+      <b>E</b> — enter / exit car &nbsp;·&nbsp; hold <b>E</b> — rob a store<br>
+      <b>Shift</b> — sprint &nbsp;·&nbsp; <b>Space</b> — handbrake &nbsp;·&nbsp; <b>F</b> — punch<br>
+      <b>N</b> — start next job &nbsp;·&nbsp; <b>P / Esc</b> — pause &nbsp;·&nbsp; <b>M</b> — mute
+    </div>
+    <button id="btn-start">START STORY</button>
+    <button id="btn-continue" class="secondary" style="display:none">CONTINUE</button>
+    <div id="save-note"></div>
+    <div id="menu-sub">A GAME OF OUR OWN — NO ROCKSTAR, NO PROBLEM</div>
+  </div>
+</div>
+
+<div id="paused" class="screen hidden">
+  <div class="card">
+    <h1 style="font-size:32px">PAUSED</h1>
+    <p>The city waits. It always waits.</p>
+    <button id="btn-resume">RESUME</button>
+    <button id="btn-restart" class="secondary">RESTART STORY</button>
+  </div>
+</div>
+
+<div id="busted" class="screen hidden">
+  <div class="card">
+    <h1 style="font-size:32px;color:#7fb3ff">BUSTED</h1>
+    <p>The Solmar Bay PD has you. Bail is $100, and Mara is already laughing at you.</p>
+    <button id="btn-retry">BACK ON THE STREETS</button>
+  </div>
+</div>
+
+<div id="wasted" class="screen hidden">
+  <div class="card">
+    <h1 style="font-size:32px;color:#ff5a4e">WASTED</h1>
+    <p>You pushed your luck too far. The city keeps your $50 as a souvenir.</p>
+    <button id="btn-retry2">GET UP</button>
+  </div>
+</div>
+
+<div id="complete" class="screen hidden">
+  <div class="card">
+    <h1 id="end-title" style="font-size:32px">SOLMAR BAY IS YOURS</h1>
+    <p id="end-text"></p>
+    <button id="btn-freeroam">KEEP DRIVING (FREE ROAM)</button>
+  </div>
+</div>
+
+<div id="err"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
