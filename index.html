@@ -27,6 +27,10 @@
   #health-num { font: 700 13px ui-monospace, monospace; width: 30px; text-align: right; }
   #money { font: 700 20px ui-monospace, monospace; color: var(--accent); margin-top: 4px; }
   #money-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+  #weapon { font: 700 14px ui-monospace, monospace; color: #7ee2b8; margin-top: 4px; letter-spacing: 1px; }
+  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-size: 22px; font-weight: 700; color: rgba(255,255,255,0.85); text-shadow: 0 0 4px #000;
+    pointer-events: none; z-index: 5; }
 
   /* wanted stars */
   #stars { position: absolute; top: 14px; right: 16px; font-size: 30px; letter-spacing: 4px;
@@ -104,6 +108,7 @@
     </div>
     <div id="money">$0</div>
     <div id="money-label">CASH</div>
+    <div id="weapon" style="display:none">PISTOL <span id="ammo">12</span></div>
   </div>
   <div id="stars">☆☆☆☆☆</div>
   <div id="mission">
@@ -118,6 +123,7 @@
   <div id="toast"></div>
 </div>
 <div id="vignette"></div>
+<div id="crosshair" style="display:none">+</div>
 
 <div id="menu" class="screen">
   <div class="card">
@@ -130,7 +136,8 @@
       <b>W A S D</b> — walk / drive &nbsp;·&nbsp; <b>Mouse drag</b> — look around<br>
       <b>E</b> — enter / exit car &nbsp;·&nbsp; hold <b>E</b> — rob a store<br>
       <b>Shift</b> — sprint &nbsp;·&nbsp; <b>Space</b> — handbrake &nbsp;·&nbsp; <b>F</b> — punch<br>
-      <b>N</b> — start next job &nbsp;·&nbsp; <b>P / Esc</b> — pause &nbsp;·&nbsp; <b>M</b> — mute
+      <b>N</b> — start next job &nbsp;·&nbsp; <b>P / Esc</b> — pause &nbsp;·&nbsp; <b>M</b> — mute<br>
+      <b>Click</b> — shoot pistol (pick one up first, green marker on the map)
     </div>
     <button id="btn-start">START STORY</button>
     <button id="btn-continue" class="secondary" style="display:none">CONTINUE</button>

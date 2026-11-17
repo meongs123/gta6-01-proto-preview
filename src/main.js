@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RNG, clamp, lerp, angleLerp, dist2 } from './rng.js';
 import { createCity, collideBuildings, CITY } from './world.js';
-import { createEntities, updatePlayer, updateTraffic, updatePeds, updatePolice, enterCar, exitCar, damagePlayer, knockPed, addWanted, makeCarMesh } from './entities.js';
+import { createEntities, updatePlayer, updateTraffic, updatePeds, updatePolice, updatePickups, enterCar, exitCar, damagePlayer, knockPed, addWanted, shootPistol, makeCarMesh } from './entities.js';
 import { Missions } from './missions.js';
 import { HUD } from './hud.js';
 import { AudioSys } from './audio.js';
@@ -51,6 +51,9 @@ G.player = {
   moving: false,
   damageFlash: 0,
   mesh: null,
+  pistol: false,
+  ammo: 0,
+  shotCooldown: 0,
 };
 
 G.audio = new AudioSys();
@@ -83,14 +86,21 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87b5d6);
+// sky gradient (procedural canvas, redrawn with the time of day — no external files)
+const skyCanvas = document.createElement('canvas');
+skyCanvas.width = 16; skyCanvas.height = 256;
+const skyCtx = skyCanvas.getContext('2d');
+const skyTex = new THREE.CanvasTexture(skyCanvas);
+skyTex.colorSpace = THREE.SRGBColorSpace;
+scene.background = skyTex;
+scene.fog = new THREE.Fog(0xdfeaf2, 260, 900);
 G.scene = scene;
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1200);
 G.camera = camera;
 
 const hemi = new THREE.HemisphereLight(0xbfd8ee, 0x4a4f55, 1.0);
 scene.add(hemi);
-const amb = new THREE.AmbientLight(0x4a5560, 0.85);
+const amb = new THREE.AmbientLight(0x4a5560, 1.0);
 scene.add(amb);
 const sun = new THREE.DirectionalLight(0xffe0b0, 1.6);
 sun.castShadow = true;
@@ -137,13 +147,31 @@ function updateDayNight(dt) {
   sun.target.position.set(px, 0, pz);
   sun.intensity = 0.3 + dayF * 1.6;
   sun.color.setHex(dayF > 0.5 ? 0xffe0b0 : 0xff9a5a);
-  hemi.intensity = 0.35 + dayF * 0.65;
+  hemi.intensity = 0.45 + dayF * 0.6;
   const sky = new THREE.Color().copy(DAY_SKY);
   if (elev > -0.05 && elev < 0.25) sky.lerp(DUSK_SKY, clamp((0.25 - elev) / 0.3, 0, 0.7));
   else if (elev <= -0.05) sky.lerp(NIGHT_SKY, clamp((-elev - 0.05) / 0.2, 0, 1));
-  scene.background = sky;
+  // vertical sky gradient: zenith -> mid -> horizon, blended day/dusk/night
+  const duskF = (elev > -0.05 && elev < 0.25) ? clamp((0.25 - elev) / 0.3, 0, 0.7) : 0;
+  const blend3 = (day, dusk, night) => {
+    const c = new THREE.Color(day);
+    c.lerp(new THREE.Color(night), nightF);
+    c.lerp(new THREE.Color(dusk), duskF);
+    return c;
+  };
+  const zen = blend3(0x5a9bd4, 0x2c3e6b, 0x060a18);
+  const mid = blend3(0x87b5d6, 0xe8905a, 0x0e1626);
+  const hor = blend3(0xdfeaf2, 0xf7b267, 0x1a2436);
+  const grad = skyCtx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#' + zen.getHexString());
+  grad.addColorStop(0.55, '#' + mid.getHexString());
+  grad.addColorStop(1, '#' + hor.getHexString());
+  skyCtx.fillStyle = grad;
+  skyCtx.fillRect(0, 0, 16, 256);
+  skyTex.needsUpdate = true;
   G.city.setNight(nightF);
-  scene.fog = new THREE.Fog(sky.getHex(), 260, 900);
+  G.city.updateTrafficLights(G.time);
+  scene.fog.color.copy(hor);
 }
 
 // ---------- input ----------
@@ -193,8 +221,10 @@ function doPunch() {
 function doInteract() {
   if (G.state !== 'playing') return;
   const p = G.player;
-  // robbing takes priority over exiting the car
-  if (G.missions.holdTarget) return;
+  // can't exit the car mid-robbery (hold in progress) — but merely standing
+  // near a store must not trap you in the car
+  const robbing = G.missions.active && (G.missions.active.hold || 0) > 0;
+  if (robbing) return;
   if (p.inCar) { exitCar(G); return; }
   if (G.nearCar) { enterCar(G, G.nearCar); return; }
 }
@@ -218,10 +248,12 @@ function togglePause() {
   }
 }
 
-// mouse camera: drag to orbit; wheel zooms
+// mouse camera: drag to orbit; wheel zooms; click (no drag) shoots the pistol
 let dragging = false, lastX = 0, lastY = 0;
+let downX = 0, downY = 0, downT = 0;
 renderer.domElement.addEventListener('pointerdown', (e) => {
   dragging = true; lastX = e.clientX; lastY = e.clientY;
+  downX = e.clientX; downY = e.clientY; downT = performance.now();
 });
 addEventListener('pointermove', (e) => {
   if (!dragging) return;
@@ -229,7 +261,11 @@ addEventListener('pointermove', (e) => {
   G.camPitch = clamp(G.camPitch + (e.clientY - lastY) * 0.004, 0.08, 1.1);
   lastX = e.clientX; lastY = e.clientY;
 });
-addEventListener('pointerup', () => { dragging = false; });
+addEventListener('pointerup', (e) => {
+  dragging = false;
+  const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+  if (moved < 6 && performance.now() - downT < 400) shootPistol(G);
+});
 renderer.domElement.addEventListener('wheel', (e) => {
   G.camDist = clamp(G.camDist + e.deltaY * 0.01, 6, 18);
 }, { passive: true });
@@ -241,6 +277,10 @@ function updateCamera(dt) {
   if (p.inCar && !dragging) {
     const targetYaw = p.heading + Math.PI;
     G.camYaw = angleLerp(G.camYaw, targetYaw, Math.min(1, dt * 1.2));
+  }
+  // pistol out on foot: ease the camera flatter so the crosshair can reach distant targets
+  if (p.pistol && !p.inCar && !dragging) {
+    G.camPitch = angleLerp(G.camPitch, 0.10, Math.min(1, dt * 2));
   }
   const dist = p.inCar ? G.camDist + 3 : G.camDist;
   const cx = p.pos.x + Math.sin(G.camYaw) * Math.cos(G.camPitch) * dist;
@@ -346,11 +386,14 @@ function continueSave() {
 // ---------- main loop ----------
 const clock = new THREE.Clock();
 let frames = 0, fpsTimer = 0;
+// test-only time acceleration: ?ts=8 runs game logic 8x faster (headless tests)
+const TS = parseFloat(new URLSearchParams(location.search).get('ts')) || 1;
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  frames++; fpsTimer += dt;
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.05) * TS;
+  frames++; fpsTimer += rawDt; // fps from REAL frame time, not clamped dt
   if (fpsTimer >= 0.5) {
     G.fps = Math.round(frames / fpsTimer);
     frames = 0; fpsTimer = 0;
@@ -358,10 +401,12 @@ function animate() {
   }
   if (G.state === 'playing') {
     G.time += dt;
+    if (G.player.shotCooldown > 0) G.player.shotCooldown -= dt;
     updatePlayer(G, dt, G.input);
     updateTraffic(G, dt);
     updatePeds(G, dt);
     updatePolice(G, dt);
+    updatePickups(G, dt);
     G.missions.update(dt);
     // health regen after 10s without damage
     if (G.player.health < 100 && G.time - (G.lastDamageAt || 0) > 10) {
@@ -424,6 +469,8 @@ window.__debug = {
   pressE: () => doInteract(),
   pressN: () => doNextMission(),
   punch: () => doPunch(),
+  shoot: () => shootPistol(G),
+  givePistol: () => { G.player.pistol = true; G.player.ammo = 12; },
   holdW: (secs) => { G.input.f = true; setTimeout(() => { G.input.f = false; }, secs * 1000); },
   holdKeys: (keys, secs) => {
     for (const k of keys) G.input[k] = true;

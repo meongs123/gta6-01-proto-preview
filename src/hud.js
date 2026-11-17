@@ -5,6 +5,7 @@ export class HUD {
     this.el = {};
     for (const id of ['health-fill', 'health-num', 'money', 'stars', 'mission-title',
       'mission-obj', 'mission-dist', 'speed', 'speed-box', 'prompt', 'toast', 'vignette',
+      'weapon', 'ammo', 'crosshair',
       'menu', 'paused', 'busted', 'wasted', 'complete', 'menu-sub', 'end-title', 'end-text',
       'btn-start', 'btn-continue', 'btn-resume', 'btn-retry', 'btn-retry2', 'btn-freeroam',
       'btn-restart', 'save-note']) {
@@ -66,6 +67,10 @@ export class HUD {
     } else {
       this.el['speed-box'].style.display = 'none';
     }
+    // weapon chip + crosshair (pistol only, on foot)
+    this.el.weapon.style.display = G.player.pistol ? 'block' : 'none';
+    if (G.player.pistol) this.el.ammo.textContent = G.player.ammo;
+    this.el.crosshair.style.display = (G.player.pistol && !G.player.inCar && G.state === 'playing') ? 'block' : 'none';
     // prompt
     this.el.prompt.textContent = G.prompt || '';
     // vignette
@@ -111,6 +116,14 @@ export class HUD {
     for (const c of G.parked) {
       ctx.fillStyle = '#5a636e';
       ctx.fillRect(px(c.pos.x) - 2, pz(c.pos.z) - 2, 4, 4);
+    }
+    // pistol pickups (green dots)
+    if (G.pickups) {
+      ctx.fillStyle = '#2ee6a8';
+      for (const pk of G.pickups) {
+        if (pk.taken) continue;
+        ctx.fillRect(px(pk.pos.x) - 2, pz(pk.pos.z) - 2, 4, 4);
+      }
     }
     // player arrow (rotates with heading)
     const p = G.player;

@@ -80,6 +80,7 @@ export class AudioSys {
 
   thud() { this.blip(90, 0.18, 'triangle', 0.3); }
   punch() { this.blip(140, 0.12, 'square', 0.2); }
+  shot() { this.blip(190, 0.09, 'square', 0.28); setTimeout(() => this.blip(70, 0.12, 'triangle', 0.22), 20); }
   pickup() { this.blip(880, 0.1); setTimeout(() => this.blip(1320, 0.14), 90); }
 
   jingle() {

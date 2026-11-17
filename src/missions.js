@@ -131,12 +131,15 @@ export class Missions {
       },
       {
         name: 'Tail the Courier',
-        brief: 'Follow the blue courier. Stay close — but not too close.',
+        brief: 'Mara cooled the heat. Follow the blue courier — stay close, but not too close.',
         start: (st) => {
           st.objective = 'Tail the blue car — stay 12–45m for 30s';
           st.followTime = 0;
           st.spotted = 0;
           st.lost = 0;
+          // stealth tail: heat is off, cops patrol instead of hunting
+          G.wanted = 0;
+          G.stealthTail = true;
           // spawn the courier on a road loop
           const c = G.traffic[0];
           c.isCourier = true;
@@ -312,6 +315,7 @@ export class Missions {
 
   complete() {
     const m = this.list[this.idx];
+    this.G.stealthTail = false;
     if (this.courier) {
       this.courier.isCourier = false;
       this.courier.baseSpeed = 11;
@@ -336,6 +340,7 @@ export class Missions {
   }
 
   fail(reason) {
+    this.G.stealthTail = false;
     if (this.courier) {
       this.courier.isCourier = false;
       this.courier.baseSpeed = 11;
